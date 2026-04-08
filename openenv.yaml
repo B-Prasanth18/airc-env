@@ -9,13 +9,16 @@ author: Prasanth
 
 tasks:
   - name: airc_easy
-    description: "2 incidents, moderate severity, generous deadlines. Agent must resolve all before system health degrades."
+    description: "2 incidents, moderate severity, generous deadlines."
     difficulty: easy
+    grader: env.grader:grade_easy
 
   - name: airc_medium
-    description: "4 incidents with mixed severity and tighter deadlines. Requires smart prioritization."
+    description: "4 incidents with mixed severity and tighter deadlines."
     difficulty: medium
+    grader: env.grader:grade_medium
 
   - name: airc_hard
-    description: "6 incidents with dynamic new incidents spawning mid-episode. High severity, tight deadlines. Tests frontier model capability."
+    description: "6 incidents with dynamic spawning, tight deadlines."
     difficulty: hard
+    grader: env.grader:grade_hard
