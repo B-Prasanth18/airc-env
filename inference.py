@@ -11,9 +11,9 @@ from openai import OpenAI
 # =====================================================
 # ENV VARS - injected by judges, DO NOT hardcode
 # =====================================================
-API_KEY = os.environ["API_KEY"]           # mandatory - raises KeyError if missing
-API_BASE_URL = os.environ["API_BASE_URL"] # mandatory - raises KeyError if missing
-MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
+API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
 # =====================================================
 # OpenAI client using judge-provided proxy
