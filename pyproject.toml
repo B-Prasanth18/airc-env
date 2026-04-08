@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "airc-env"
+version = "0.1.0"
+description = "AI CrisisOps Commander - OpenEnv Environment for AI incident response"
+authors = [
+    { name = "Prasanth" }
+]
+requires-python = ">=3.10"
+
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "pydantic>=2.0.0",
+    "openai>=1.0.0",
+    "openenv-core>=0.2.0",
+]
+
+[project.scripts]
+server = "server.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["env*", "server*"]
