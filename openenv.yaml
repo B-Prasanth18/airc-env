@@ -1,24 +1,14 @@
 name: airc_env
-description: >
-  AI CrisisOps Commander — A real-world IT incident response environment where
-  an AI agent triages and resolves incidents under time pressure. Simulates
-  actual SRE/DevOps workflows with severity-based prioritization, deadlines,
-  and system health degradation.
+description: AI CrisisOps Commander - Real-world IT incident response environment
 version: "1.0"
 author: Prasanth
 
 tasks:
   - name: airc_easy
     description: "2 incidents, moderate severity, generous deadlines."
-    difficulty: easy
-    grader: env.grader:grade_easy
 
   - name: airc_medium
     description: "4 incidents with mixed severity and tighter deadlines."
-    difficulty: medium
-    grader: env.grader:grade_medium
 
   - name: airc_hard
     description: "6 incidents with dynamic spawning, tight deadlines."
-    difficulty: hard
-    grader: env.grader:grade_hard
