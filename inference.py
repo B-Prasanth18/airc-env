@@ -161,7 +161,7 @@ def run_task(task_name: str, difficulty: str):
             if done:
                 break
 
-        score = compute_score(env)
+        score = float(min(max(compute_score(env), 0.0), 1.0))
         success = score >= 0.3
 
     except Exception as e:
@@ -177,7 +177,7 @@ def run_task(task_name: str, difficulty: str):
 # ENTRY POINT
 # =====================================================
 if __name__ == "__main__":
-    task_name = os.environ.get("TASK_NAME", "airc_easy")
+    task_name = os.environ.get("TASK_NAME", "")
 
     difficulty_map = {
         "airc_easy":   "easy",
@@ -185,5 +185,10 @@ if __name__ == "__main__":
         "airc_hard":   "hard",
     }
 
-    difficulty = difficulty_map.get(task_name, "easy")
-    run_task(task_name, difficulty)
+    if task_name in difficulty_map:
+        run_task(task_name, difficulty_map[task_name])
+    else:
+        # Run all 3 tasks when no specific TASK_NAME is set
+        run_task("airc_easy", "easy")
+        run_task("airc_medium", "medium")
+        run_task("airc_hard", "hard")
