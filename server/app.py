@@ -1,6 +1,6 @@
 """
 server/app.py - FastAPI server for AIRC OpenEnv environment.
-Exposes /reset, /step, /state, /tasks endpoints on port 7860.
+Exposes /reset, /step, /state, /tasks, /grade, /health on port 7860.
 """
 
 from fastapi import FastAPI
@@ -10,28 +10,41 @@ import uvicorn
 from env.environment import AIRCEnv
 from env.grader import grade_easy, grade_medium, grade_hard, compute_score
 
-app = FastAPI(title="AIRC OpenEnv", version="1.0.0")
+app = FastAPI(
+    title="AIRC OpenEnv — AI CrisisOps Commander",
+    description="Real-world IT incident response environment for RL agent training.",
+    version="1.0.0",
+)
+
 env = AIRCEnv()
 
-# Task registry with graders
 TASKS = {
     "airc_easy": {
         "name": "airc_easy",
-        "description": "2 incidents, moderate severity, generous deadlines.",
+        "description": "2 incidents (server P2 + network P3). Generous deadlines. "
+                       "Agent learns basic triage and resolution prioritization.",
         "difficulty": "easy",
         "grader": grade_easy,
+        "max_steps": 10,
+        "incidents": 2,
     },
     "airc_medium": {
         "name": "airc_medium",
-        "description": "4 incidents with mixed severity and tighter deadlines.",
+        "description": "4 incidents (server P1, security P1, network P2, database P1). "
+                       "Mixed severity, tighter deadlines. Agent must prioritize by SLA risk.",
         "difficulty": "medium",
         "grader": grade_medium,
+        "max_steps": 10,
+        "incidents": 4,
     },
     "airc_hard": {
         "name": "airc_hard",
-        "description": "6 incidents with dynamic spawning, tight deadlines.",
+        "description": "6 incidents (all P1/P2), 30% chance of new incident each step. "
+                       "Tight deadlines. Tests frontier model capability under extreme pressure.",
         "difficulty": "hard",
         "grader": grade_hard,
+        "max_steps": 10,
+        "incidents": "6+",
     },
 }
 
@@ -54,7 +67,7 @@ class ResetRequest(BaseModel):
 
 @app.get("/tasks")
 def get_tasks():
-    """Return list of tasks with grader info."""
+    """Return all available tasks with grader metadata."""
     return {
         "tasks": [
             {
@@ -62,6 +75,8 @@ def get_tasks():
                 "description": t["description"],
                 "difficulty": t["difficulty"],
                 "has_grader": True,
+                "max_steps": t["max_steps"],
+                "incidents": t["incidents"],
             }
             for t in TASKS.values()
         ]
@@ -74,11 +89,10 @@ def reset(req: ResetRequest = None):
     if req is None:
         req = ResetRequest()
 
-    # Map task name to difficulty
     task_difficulty_map = {
-        "airc_easy": "easy",
+        "airc_easy":   "easy",
         "airc_medium": "medium",
-        "airc_hard": "hard",
+        "airc_hard":   "hard",
     }
     difficulty = task_difficulty_map.get(req.task, req.difficulty)
     state = env.reset(difficulty)
@@ -87,13 +101,21 @@ def reset(req: ResetRequest = None):
         "observation": state.dict(),
         "reward": 0.0,
         "done": False,
-        "info": {"task": req.task}
+        "info": {"task": req.task, "difficulty": difficulty}
     }
 
 
 @app.post("/step")
 def step(req: ActionRequest):
-    """Execute one action and return (observation, reward, done, info)."""
+    """
+    Execute one action.
+
+    Supported actions:
+        resolve <id>   - Resolve a pending/triaged/escalated incident
+        triage <id>    - Investigate incident (reduces ongoing penalty)
+        escalate <id>  - Escalate P1 incident to extend SLA deadline
+        assign <id>    - Assign an agent to speed resolution
+    """
     state, reward, done, info = env.step(req.action)
     return {
         "observation": state.dict(),
@@ -111,19 +133,34 @@ def get_state():
 
 @app.post("/grade")
 def grade(task: str = "airc_easy"):
-    """Grade the current episode for a given task."""
-    grader_fn = TASKS.get(task, TASKS["airc_easy"])["grader"]
-    score = grader_fn(env)
+    """Grade the current episode for a given task. Returns score in [0.0, 1.0]."""
+    task_info = TASKS.get(task, TASKS["airc_easy"])
+    score = task_info["grader"](env)
     return {
         "task": task,
-        "score": score,
+        "score": round(score, 4),
         "success": score >= 0.3,
+        "resolved": env.resolved_count,
+        "sla_breaches": env.sla_breaches,
+        "system_health": env.system_health,
     }
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    """Health check endpoint."""
+    return {"status": "ok", "env": "airc_env", "version": "1.0.0"}
+
+
+@app.get("/")
+def root():
+    """Root endpoint with environment info."""
+    return {
+        "name": "AIRC OpenEnv",
+        "description": "AI CrisisOps Commander — Real-world IT incident response environment",
+        "endpoints": ["/reset", "/step", "/state", "/tasks", "/grade", "/health"],
+        "tasks": list(TASKS.keys()),
+    }
 
 
 # =====================================================

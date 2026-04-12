@@ -55,38 +55,50 @@ def log_end(success: bool, steps: int, score: float, rewards: list):
 # LLM ACTION - ALWAYS calls through proxy
 # =====================================================
 def choose_action(state) -> str:
-    """Call LLM through judge proxy to decide which incident to resolve."""
+    """Call LLM through judge proxy to decide incident action."""
+    pending = [i for i in state.incidents if i.status != "resolved"]
     incidents_info = "\n".join(
         f"  - id={i.id}, type={i.type}, severity={i.severity:.2f}, "
-        f"deadline={i.deadline}, status={i.status}"
+        f"priority={i.priority}, deadline={i.deadline}, "
+        f"sla_risk={i.sla_risk:.2f}, status={i.status}"
         for i in state.incidents
     )
 
-    prompt = f"""You are an AI incident response commander.
+    prompt = f"""You are an expert SRE (Site Reliability Engineer) managing IT incidents.
 
-Current environment state:
+Current State:
 - Time step: {state.time}
 - System health: {state.system_health:.2f}
+- Active agents available: {state.active_agents}
+- Resolved: {state.resolved_count} incidents
+- SLA breaches so far: {state.sla_breaches}
 
-Active incidents:
+All Incidents:
 {incidents_info}
 
-Your goal: Resolve the most critical pending incident.
-Priority: highest severity first, then soonest deadline.
+Available Actions:
+  resolve <id>   - Fully resolve a pending/triaged/escalated incident
+  triage <id>    - Investigate a pending incident (reduces ongoing penalty)
+  escalate <id>  - Escalate a P1 incident to extend its deadline by 2 steps
+  assign <id>    - Assign an agent to an incident (bonus reward on resolution)
 
-Respond with ONLY the action in this exact format:
-resolve <id>
+Strategy Guide:
+  1. ALWAYS prioritize P1 incidents with high sla_risk (close to 1.0)
+  2. Use triage on incidents you can't resolve immediately
+  3. Use escalate on P1 incidents with deadline <= 2
+  4. Use assign when active_agents > 0 and a critical incident needs attention
+  5. Resolve triaged incidents next (they have reduced penalty)
 
-Where <id> is the integer ID of the incident to resolve."""
+Respond with ONLY one action in exact format: <action_type> <id>
+Example: resolve 2"""
 
-    # This call MUST go through the proxy - no try/except that silently bypasses it
     response = client.chat.completions.create(
         model=MODEL_NAME,
         messages=[
             {
                 "role": "system",
-                "content": "You are an intelligent incident response agent. "
-                           "Always respond with exactly: resolve <id>"
+                "content": "You are an expert SRE incident commander. "
+                           "Respond with exactly one action: resolve/triage/escalate/assign followed by incident ID."
             },
             {"role": "user", "content": prompt},
         ],
@@ -94,32 +106,40 @@ Where <id> is the integer ID of the incident to resolve."""
         max_tokens=20,
     )
 
-    action = response.choices[0].message.content.strip()
+    action = response.choices[0].message.content.strip().lower()
 
-    # Validate and sanitize output (but LLM call was always made above)
-    if not action.startswith("resolve "):
-        # Extract any number from response as fallback
-        import re
-        nums = re.findall(r'\d+', action)
-        if nums:
-            action = f"resolve {nums[0]}"
-        else:
-            # Pick highest severity pending incident
-            pending = sorted(
-                [i for i in state.incidents if i.status == "pending"],
-                key=lambda x: x.severity,
-                reverse=True
-            )
-            action = f"resolve {pending[0].id}" if pending else "resolve 1"
+    # Validate action format
+    valid_actions = ("resolve", "triage", "escalate", "assign")
+    parts = action.split()
 
-    return action
+    if len(parts) == 2 and parts[0] in valid_actions:
+        try:
+            int(parts[1])
+            return action
+        except ValueError:
+            pass
+
+    # Fallback: resolve highest severity pending incident
+    import re
+    nums = re.findall(r'\d+', action)
+    action_word = next((a for a in valid_actions if a in action), "resolve")
+
+    pending_incidents = [i for i in state.incidents if i.status not in ("resolved",)]
+    if pending_incidents and nums:
+        return f"{action_word} {nums[0]}"
+
+    if pending_incidents:
+        # Pick highest SLA risk incident
+        urgent = max(pending_incidents, key=lambda x: (x.sla_risk, x.severity))
+        return f"resolve {urgent.id}"
+
+    return "resolve 1"
 
 
 # =====================================================
 # RUN ONE TASK
 # =====================================================
 def run_task(task_name: str, difficulty: str):
-    # Import here so path issues surface clearly
     from env.environment import AIRCEnv
     from env.grader import compute_score
 
@@ -135,7 +155,6 @@ def run_task(task_name: str, difficulty: str):
         state = env.reset(difficulty)
 
         for step in range(1, MAX_STEPS + 1):
-            # Check if all resolved
             if all(i.status == "resolved" for i in state.incidents):
                 break
 
@@ -144,13 +163,12 @@ def run_task(task_name: str, difficulty: str):
                 action = choose_action(state)
             except Exception as e:
                 error_msg = str(e)
-                # Still need to take some action - pick best pending
-                pending = sorted(
-                    [i for i in state.incidents if i.status == "pending"],
-                    key=lambda x: x.severity,
-                    reverse=True
-                )
-                action = f"resolve {pending[0].id}" if pending else "resolve 1"
+                pending = [i for i in state.incidents if i.status != "resolved"]
+                if pending:
+                    urgent = max(pending, key=lambda x: (x.sla_risk, x.severity))
+                    action = f"resolve {urgent.id}"
+                else:
+                    action = "resolve 1"
 
             state, reward, done, _ = env.step(action)
             steps += 1

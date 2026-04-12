@@ -1,14 +1,30 @@
 name: airc_env
-description: AI CrisisOps Commander - Real-world IT incident response environment
+description: >
+  AI CrisisOps Commander — A real-world SRE incident response environment where
+  an AI agent triages, escalates, assigns, and resolves IT incidents under time
+  pressure. Models actual on-call workflows with priority classification (P1/P2/P3),
+  SLA deadline tracking, system health degradation, and dense reward shaping.
+  Useful for training agents on enterprise reliability engineering tasks.
 version: "1.0"
 author: Prasanth
 
 tasks:
   - name: airc_easy
-    description: "2 incidents, moderate severity, generous deadlines."
+    description: >
+      2 incidents (server P2 + network P3) with generous SLA deadlines.
+      Agent learns basic prioritization and resolution strategies.
+      Expected baseline score: 0.6-0.8
 
   - name: airc_medium
-    description: "4 incidents with mixed severity and tighter deadlines."
+    description: >
+      4 incidents (server P1, security P1, network P2, database P1) with
+      tighter deadlines. Agent must prioritize by SLA risk and severity.
+      Tests multi-incident triage and escalation decisions.
+      Expected baseline score: 0.4-0.6
 
   - name: airc_hard
-    description: "6 incidents with dynamic spawning, tight deadlines."
+    description: >
+      6 incidents (all P1/P2) with tight deadlines and 30% chance of new
+      incident spawning each step. Dynamic environment tests frontier model
+      capability under extreme operational pressure.
+      Expected baseline score: 0.2-0.4
